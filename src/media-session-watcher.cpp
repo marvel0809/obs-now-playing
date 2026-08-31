@@ -3,6 +3,11 @@
 // Windows SDK ships pre-generated C++/WinRT projection headers for the OS
 // API surface (including Windows.Media.Control), so no cppwinrt.exe / MIDL
 // generation step is required -- just #include and link windowsapp.lib.
+// Collections.h must come first: it defines the begin()/end() support that
+// range-based for needs for IVectorView<T> (GetSessions() below) -- without
+// it (or included after first use) MSVC fails with C3779/C3536 on the
+// range-for over manager.GetSessions().
+#include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Graphics.Imaging.h>
 #include <winrt/Windows.Media.Control.h>

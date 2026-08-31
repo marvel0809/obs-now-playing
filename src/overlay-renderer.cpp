@@ -73,7 +73,7 @@ std::vector<uint8_t> OverlayRenderer::render(const MediaSnapshot &snapshot, cons
 	if (width <= 0 || height <= 0)
 		return {};
 
-	Gdiplus::Bitmap bitmap(width, height, PixelFormat32bppArgb);
+	Gdiplus::Bitmap bitmap(width, height, PixelFormat32bppARGB);
 	Gdiplus::Graphics gfx(&bitmap);
 	gfx.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 	gfx.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit);
@@ -101,7 +101,7 @@ std::vector<uint8_t> OverlayRenderer::render(const MediaSnapshot &snapshot, cons
 		gfx.SetClip(&clip);
 
 		if (!snapshot.art_pixels.empty() && snapshot.art_width > 0 && snapshot.art_height > 0) {
-			Gdiplus::Bitmap art(snapshot.art_width, snapshot.art_height, snapshot.art_width * 4, PixelFormat32bppArgb,
+			Gdiplus::Bitmap art(snapshot.art_width, snapshot.art_height, snapshot.art_width * 4, PixelFormat32bppARGB,
 					     const_cast<BYTE *>(snapshot.art_pixels.data()));
 			gfx.DrawImage(&art, Gdiplus::Rect(art_x, art_y, art_size, art_size));
 		} else {
@@ -115,9 +115,15 @@ std::vector<uint8_t> OverlayRenderer::render(const MediaSnapshot &snapshot, cons
 	int text_left = (settings.show_album_art && art_size > 0) ? (art_x + art_size + padding) : padding;
 	int text_width = std::max(10, width - text_left - padding);
 
-	Gdiplus::FontFamily family(Utf8ToWide(settings.font_face).c_str());
-	if (family.GetLastStatus() != Gdiplus::Ok)
-		family = Gdiplus::FontFamily(L"Segoe UI");
+	// FontFamily has no accessible copy-assignment operator, so resolve the
+	// name we're going to use *before* constructing the real object.
+	std::wstring requestedFamily = Utf8ToWide(settings.font_face);
+	{
+		Gdiplus::FontFamily probe(requestedFamily.c_str());
+		if (probe.GetLastStatus() != Gdiplus::Ok)
+			requestedFamily = L"Segoe UI";
+	}
+	Gdiplus::FontFamily family(requestedFamily.c_str());
 
 	int gdiStyle = Gdiplus::FontStyleRegular;
 	if (settings.font_flags & OBS_FONT_BOLD)
@@ -132,10 +138,13 @@ std::vector<uint8_t> OverlayRenderer::render(const MediaSnapshot &snapshot, cons
 	if (!snapshot.has_session) {
 		Gdiplus::Font font(&family, (Gdiplus::REAL)settings.title_font_size, gdiStyle, Gdiplus::UnitPixel);
 		Gdiplus::SolidBrush brush(ToGdiColor(settings.text_color));
-		Gdiplus::StringFormat centered(format);
-		centered.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+		// StringFormat's copy constructor is protected (must use Clone()),
+		// so just mutate the shared `format` in place -- safe here because
+		// this branch is the only one that runs (mutually exclusive with
+		// the title/artist branch below) and nothing reads `format` after.
+		format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
 		Gdiplus::RectF rect((Gdiplus::REAL)text_left, 0.0f, (Gdiplus::REAL)text_width, (Gdiplus::REAL)height);
-		gfx.DrawString(Utf8ToWide(settings.idle_text).c_str(), -1, &font, rect, &centered, &brush);
+		gfx.DrawString(Utf8ToWide(settings.idle_text).c_str(), -1, &font, rect, &format, &brush);
 	} else {
 		int y = padding + 4;
 
@@ -218,7 +227,7 @@ std::vector<uint8_t> OverlayRenderer::render(const MediaSnapshot &snapshot, cons
 
 	Gdiplus::BitmapData data{};
 	Gdiplus::Rect full(0, 0, width, height);
-	if (bitmap.LockBits(&full, Gdiplus::ImageLockModeRead, PixelFormat32bppArgb, &data) != Gdiplus::Ok)
+	if (bitmap.LockBits(&full, Gdiplus::ImageLockModeRead, PixelFormat32bppARGB, &data) != Gdiplus::Ok)
 		return {};
 
 	std::vector<uint8_t> out(size_t(width) * size_t(height) * 4);
