@@ -34,6 +34,21 @@ if(ENABLE_QT)
   )
 endif()
 
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/plugin-main.c)
+target_sources(
+  ${CMAKE_PROJECT_NAME}
+  PRIVATE
+    src/plugin-main.cpp
+    src/now-playing-source.cpp
+    src/now-playing-source.h
+    src/media-session-watcher.cpp
+    src/media-session-watcher.h
+    src/overlay-renderer.cpp
+    src/overlay-renderer.h
+    src/now-playing-settings.h
+)
+
+if(OS_WINDOWS)
+  target_compile_features(${CMAKE_PROJECT_NAME} PRIVATE cxx_std_20)
+endif()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
